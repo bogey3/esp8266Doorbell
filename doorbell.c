@@ -1,4 +1,3 @@
-
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
@@ -31,7 +30,7 @@ void handleInterrupt() {
   }else{
     Serial.println("Doorbell is disabled");
   }
-  
+
 }
 
 void handleRoot() {
@@ -59,7 +58,7 @@ void setup() {
   EEPROM.begin(EEPROM_SIZE);
   //Retrieve previous value of variable from eeprom
   enabled = EEPROM.read(0) == 1;
-    
+
   pinMode(r1, OUTPUT_OPEN_DRAIN);
   digitalWrite(r1, HIGH);
   pinMode(button, INPUT_PULLUP);
@@ -86,7 +85,7 @@ void setup() {
     EEPROM.commit();
   });
   server.on("/status", []() {
-    String out = "";  
+    String out = "";
     if(enabled){
       out = "True";
     }else{
@@ -101,9 +100,22 @@ void setup() {
     }else{
       server.send(200, "text/plain", "0");
     }
-   
+
   });
- 
+
+  server.on("/dingdong", []() {
+    //Ring the doorbell
+    if (enabled){
+      digitalWrite(r1, LOW);
+      delay(150);
+      digitalWrite(r1, HIGH);
+      server.send(200, "text/plain", "Rung doorbell");
+    }else{
+      server.send(200, "text/plain", "Doorbell is disabled");
+    }
+
+  });
+
   server.onNotFound(handleNotFound);
 
   WiFiMulti.addAP(ssid, password);
@@ -111,7 +123,7 @@ void setup() {
         Serial.print(".");
         delay(500);
   }
-  
+
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
@@ -119,19 +131,21 @@ void setup() {
 
   server.begin();
   Serial.println("HTTP server started");
-  
+
 }
 
 
 void loop() {
   server.handleClient();
   if (sendToHomeKit){
-    //Send the http request to homebridge running a http doorbell plugin (https://www.npmjs.com/package/homebridge-http-doorbell), this will show up as a motion sensor
-    HTTPClient http;
-    http.begin("http://172.16.0.101:9053/front");
-    http.GET();
-    Serial.println("Sent to homekit");
-    http.end();
+    if (WiFiMulti.run() == WL_CONNECTED){
+      //Send the http request to homebridge running a http doorbell plugin (https://www.npmjs.com/package/homebridge-http-doorbell), this will show up as a motion sensor
+      HTTPClient http;
+      http.begin("http://172.16.0.101:9053/front");
+      http.GET();
+      Serial.println("Sent to homekit");
+      http.end();
+    }
     sendToHomeKit = false;
   }
 }
